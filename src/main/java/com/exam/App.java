@@ -11,8 +11,8 @@ import java.util.Scanner;
 public class App {
 
     // Default Oracle Database JDBC credentials (used if environment variables are not set)
-    private static final String DEFAULT_URL = "jdbc:oracle:thin:@localhost:1521:xe";
-    private static final String DEFAULT_USER = "system";
+    private static final String DEFAULT_URL = "jdbc:oracle:thin:@//localhost:1521/XE";
+    private static final String DEFAULT_USER = "exam_user";
     private static final String DEFAULT_PASSWORD = "tiger";
 
     // Embedded fallback URL (Oracle compatibility mode) if Oracle Server is not installed locally
@@ -23,7 +23,7 @@ public class App {
         try (Connection conn = connectToDatabase();
              Scanner sc = new Scanner(System.in)) {
 
-            System.out.println("Connected to Database successfully!");
+            System.out.println("Connected to " + conn.getMetaData().getDatabaseProductName() + " successfully!");
             createTableIfNotExists(conn);
 
             while (true) {
@@ -70,10 +70,17 @@ public class App {
         String user = getEnvOrDefault("ORACLE_DB_USER", DEFAULT_USER);
         String password = getEnvOrDefault("ORACLE_DB_PASSWORD", DEFAULT_PASSWORD);
 
-        DriverManager.setLoginTimeout(2);
+        DriverManager.setLoginTimeout(3);
         try {
             Class.forName("oracle.jdbc.driver.OracleDriver");
-            return DriverManager.getConnection(url, user, password);
+            try {
+                return DriverManager.getConnection(url, user, password);
+            } catch (SQLException firstEx) {
+                // Oracle 21c XE on Windows often binds TNS Listener to the PC hostname instead of localhost
+                String hostName = java.net.InetAddress.getLocalHost().getHostName();
+                String hostUrl = "jdbc:oracle:thin:@//" + hostName + ":1521/XE";
+                return DriverManager.getConnection(hostUrl, user, password);
+            }
         } catch (Exception e) {
             // If local Oracle Server is not running, use embedded H2 in Oracle compatibility mode
             try {
